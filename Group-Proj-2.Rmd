@@ -1,0 +1,82 @@
+---
+title: "Group Project 2"
+author: "Paul Povel"
+date: "2024-11-07"
+output: html_document
+---
+# Introduction
+In this document, we are using the Hotel Booking Cancellation Prediction dataset, a comprehensive collection of data aimed at predicting hotel booking cancellations, to try and maximize the hotel's profit by being able to overbook the hotel. The data is originally from the article "Hotel Booking Demand Datasets", written by Nuno Antonio, Ana Almeida, and Luis Nunes for Data in Brief, Volume 22, February 2019. 
+
+### Business Problem
+
+The given hotel has a cancellation rate of 32.77% and therefore can not utilize it's full capacity, thus not working at maximum profitability. Losing out on a significant amount of profit means disadvantages for the business, leading to decreased competitiveness, ultimately putting the business at risk of being unable to compete. 
+**The question to answer is if a customer, identified by information collectable in advance, will or will not cancel their booking.**
+
+### Business Solution
+
+We are going to go through the process of building supervised machine learning models to facilitate the predictions.
+
+## Step 1: Clean Data
+
+```{r}
+#Load Libraries
+# Load libraries
+library(ggplot2)
+library(dplyr)
+library(corrplot)
+#Load CSV
+book = read.csv("booking.csv")
+
+#Delete Booking_ID since it doesn't influence the prediction
+book$Booking_ID = NULL
+
+#TODO: convert date.of.reservation into a usable variable
+
+#factorize character variables
+book$type.of.meal = as.factor(book$type.of.meal)
+book$room.type = as.factor(book$room.type)
+book$market.segment.type = as.factor(book$market.segment.type)
+
+#make y-variable binary
+book$booking.status = ifelse(book$booking.status=="Canceled",1,0)
+
+summary(book)
+```
+### Step 2: Visualize the data
+```{r}
+# Check cancellation distribution
+ggplot(book, aes(x = factor(booking.status, labels = c("Not Canceled", "Canceled")))) +
+  geom_bar(fill = "skyblue") +
+  labs(title = "Booking Status Distribution", x = "Booking Status", y = "Count")
+
+# Group data by lead time intervals and calculate the cancellation rate
+# Creating lead time intervals (bins) for a smoother visualization
+book$lead_time_bin <- cut(book$lead.time, breaks = seq(0, max(book$lead.time, na.rm = TRUE), by = 30), right = FALSE)
+
+# Calculate cancellation rate for each lead time bin
+lead_time_cancellation <- book %>%
+  group_by(lead_time_bin) %>%
+  summarize(cancellation_rate = mean(booking.status), n = n())
+
+# Plot cancellation rate by lead time bin
+ggplot(lead_time_cancellation, aes(x = lead_time_bin, y = cancellation_rate)) +
+  geom_line(group = 1, color = "blue") +
+  geom_point(color = "red") +
+  labs(title = "Cancellation Rate by Lead Time",
+       x = "Lead Time (days, binned)",
+       y = "Cancellation Rate") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_y_continuous(labels = scales::percent) +
+  theme_minimal()
+
+# Explore correlation between numerical variables
+# Remove non-numeric columns
+book_numeric <- book %>% select(where(is.numeric))
+# Calculate correlation matrix
+corr_matrix <- cor(book_numeric, use = "complete.obs")
+# Plot correlation matrix
+corrplot(corr_matrix, method = "color", type = "upper", tl.col = "black", tl.srt = 45, title = "Correlation Matrix", mar = c(0, 0, 1, 0))
+
+```
+
+
