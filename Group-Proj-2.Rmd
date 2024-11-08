@@ -1,6 +1,6 @@
 ---
 title: "Group Project 2"
-author: "Paul Povel"
+author: "Paul Povel, PUT NAMES HERE"
 date: "2024-11-07"
 output: html_document
 ---
