@@ -1,6 +1,6 @@
 ---
 title: "Group Project 2"
-author: "Paul Povel, PUT NAMES HERE"
+author: "Paul Povel, Rachel Lewis, Nathan Koh, Williamn Tong, Adil Toktassyn"
 date: "2024-11-07"
 output: html_document
 ---
@@ -20,17 +20,37 @@ We are going to go through the process of building supervised machine learning m
 
 ```{r}
 #Load Libraries
-# Load libraries
 library(ggplot2)
 library(dplyr)
 library(corrplot)
+library(caret)
+
 #Load CSV
 book = read.csv("booking.csv")
 
 #Delete Booking_ID since it doesn't influence the prediction
 book$Booking_ID = NULL
 
-#TODO: convert date.of.reservation into a usable variable
+#convert date.of.reservation into dates
+book$date.of.reservation <- as.Date(book$date.of.reservation, format = "%m/%d/%Y")
+
+#remove NA values and return to date formate
+book$date.of.reservation <- ifelse(is.na(book$date.of.reservation), mean(book$date.of.reservation, na.rm = TRUE), book$date.of.reservation)
+book$date.of.reservation <- as.Date(book$date.of.reservation)
+
+#extract day, day of the week, month, and year variables
+book$reservation_year <- as.factor(format(book$date.of.reservation, "%Y"))
+book$reservation_month <- as.factor(format(book$date.of.reservation, "%m"))
+book$reservation_day <- as.factor(format(book$date.of.reservation, "%d"))
+book$reservation_weekday <- as.factor(weekdays(book$date.of.reservation))
+#factors due to non-linear trends
+
+#remove date.of.reservation from dataset after extraction
+book$date.of.reservation <- NULL
+
+#remove 2015 and 2016 from dataset as there is one occurence each
+book <- book %>% 
+  filter(reservation_year != 2015, reservation_year != 2016)
 
 #factorize character variables
 book$type.of.meal = as.factor(book$type.of.meal)
@@ -79,4 +99,44 @@ corrplot(corr_matrix, method = "color", type = "upper", tl.col = "black", tl.srt
 
 ```
 
+### Step 3: Split and Train the Data
 
+```{r}
+#70:30 split
+split_size <- .7
+test_size <- split_size*nrow(book)
+set.seed(1234)
+test_rows <- sample(1:nrow(book), test_size)
+
+#make test and train data
+book_test <- book[test_rows, ]
+book_train <- book[-test_rows, ]
+
+summary(book_train)
+summary(book_test)
+```
+
+### Step 4: Build Logistic Regression Model
+
+```{r}
+m_regression <- glm(booking.status ~ ., data = book_train, family = "binomial")
+summary(m_regression)
+```
+
+### Step 5: Predict and Evaluate Regression Model
+
+```{r}
+#predict model
+p_regression <- predict(m_regression, book_test, type = "response")
+summary(p_regression)
+
+#turn prediction into binary values
+p_bin <- ifelse(p_regression > .5, 1, 0)
+
+#evaluate model
+confusionMatrix(as.factor(p_bin), as.factor(book_test$booking.status), positive = "1")
+```
+
+### Regression Analysis
+
+The regression model developed to predict booking status achieved an accuracy of 80%, meaning it correctly identified the booking status for 80% of the cases in the dataset. Accuracy is a measure of the overall performance of the model, showing how well it predicts both canceled and non-canceled bookings. Sensitivity was 64%, indicating that the model correctly identified 64% of actual cancellations. This metric is crucial when it's important to capture most cancellation cases. Specificity was 88%, meaning the model accurately identified 88% of non-canceled bookings. High specificity indicates that the model is effective at minimizing false positives, like it rarely predicts a booking as canceled when it isn’t. Together, these metrics show that the model is well-balanced, with a strong ability to accurately classify non-cancellations and a reasonable ability to capture cancellations, making it a valuable tool for understanding and predicting booking outcomes.
