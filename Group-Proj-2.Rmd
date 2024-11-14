@@ -1,10 +1,13 @@
 ---
 title: "Group Project 2"
+author: "Paul Povel, PUT NAMES HERE"
 author: "Paul Povel, Rachel Lewis, Nathan Koh, Williamn Tong, Adil Toktassyn"
 date: "2024-11-07"
 output: html_document
 ---
+
 # Introduction
+
 In this document, we are using the Hotel Booking Cancellation Prediction dataset, a comprehensive collection of data aimed at predicting hotel booking cancellations, to try and maximize the hotel's profit by being able to overbook the hotel. The data is originally from the article "Hotel Booking Demand Datasets", written by Nuno Antonio, Ana Almeida, and Luis Nunes for Data in Brief, Volume 22, February 2019. 
 
 ### Business Problem
@@ -20,16 +23,12 @@ We are going to go through the process of building supervised machine learning m
 ## Step 1: Clean Data
 
 ```{r}
-#Load Libraries
+# Load libraries
+
 library(ggplot2)
 library(dplyr)
 library(corrplot)
 library(caret)
-library(class)
-library(neuralnet)
-library(kernlab)
-library(janitor)
-library(C50)
 
 #Load CSV
 book = read.csv("booking.csv")
@@ -62,40 +61,25 @@ book <- book %>%
 book$type.of.meal = as.factor(book$type.of.meal)
 book$room.type = as.factor(book$room.type)
 book$market.segment.type = as.factor(book$market.segment.type)
-
 #make y-variable binary
 book$booking.status = ifelse(book$booking.status=="Canceled",1,0)
-
-#Turn into data frame
-book_dummy <- as.data.frame(model.matrix(~. -1, data = book))
-
-#Scale data
-minmax <- function(x) {
-  (x - min(x)) / (max(x) - min(x))
-}
-
-book <- as.data.frame(lapply(book_dummy, minmax))
-
-#display scaled data
-str(book)
 summary(book)
 ```
+
 ### Step 2: Visualize the data
+
 ```{r}
 # Check cancellation distribution
 ggplot(book, aes(x = factor(booking.status, labels = c("Not Canceled", "Canceled")))) +
   geom_bar(fill = "skyblue") +
   labs(title = "Booking Status Distribution", x = "Booking Status", y = "Count")
-
 # Group data by lead time intervals and calculate the cancellation rate
 # Creating lead time intervals (bins) for a smoother visualization
 book$lead_time_bin <- cut(book$lead.time, breaks = seq(0, max(book$lead.time, na.rm = TRUE), by = 30), right = FALSE)
-
 # Calculate cancellation rate for each lead time bin
 lead_time_cancellation <- book %>%
   group_by(lead_time_bin) %>%
   summarize(cancellation_rate = mean(booking.status), n = n())
-
 # Plot cancellation rate by lead time bin
 ggplot(lead_time_cancellation, aes(x = lead_time_bin, y = cancellation_rate)) +
   geom_line(group = 1, color = "blue") +
@@ -106,7 +90,6 @@ ggplot(lead_time_cancellation, aes(x = lead_time_bin, y = cancellation_rate)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_y_continuous(labels = scales::percent) +
   theme_minimal()
-
 # Explore correlation between numerical variables
 # Remove non-numeric columns
 book_numeric <- book %>% select(where(is.numeric))
@@ -114,7 +97,6 @@ book_numeric <- book %>% select(where(is.numeric))
 corr_matrix <- cor(book_numeric, use = "complete.obs")
 # Plot correlation matrix
 corrplot(corr_matrix, method = "color", type = "upper", tl.col = "black", tl.srt = 45, title = "Correlation Matrix", mar = c(0, 0, 1, 0))
-
 ```
 
 ### Step 3: Split and Train the Data
@@ -125,124 +107,29 @@ split_size <- .7
 test_size <- split_size*nrow(book)
 set.seed(1234)
 test_rows <- sample(1:nrow(book), test_size)
-
 #make test and train data
 book_test <- book[test_rows, ]
 book_train <- book[-test_rows, ]
-
 summary(book_train)
 summary(book_test)
 ```
 
-### Step 4: Build Models
+### Step 4: Build Logistic Regression Model
 
 ```{r}
-#logisitic regression model
 m_regression <- glm(booking.status ~ ., data = book_train, family = "binomial")
 summary(m_regression)
-
-#knn model
-cancelled_col <- which(colnames(book_train) == "booking.status")
-m_knn <- knn(train = book_train[, -cancelled_col],
-                       test = book_test[, -cancelled_col],
-                       cl = book_train[, cancelled_col],
-                       k = 11,
-                       prob = TRUE)
-summary(m_knn)
-
-#ann model
-m_ann <- neuralnet(y ~., data = calls_train, hidden = 1, stepmax = 1e8, lifesign = "full")
-summary(m_ann)
-
-#SVM model
-m_svm <- ksvm(booking.status ~ ., data = book_train, kernel = "rbfdot")
-summary(m_svm)
-
-#decision tree
-m_tree <- C5.0(as.factor(booking.status) ~ ., book_train)
-plot(m_tree)
 ```
 
-### Step 5: Predict Models
+### Step 5: Predict and Evaluate Regression Model
 
 ```{r}
-#regression model
+#predict model
 p_regression <- predict(m_regression, book_test, type = "response")
-
-#knn model
-p_knn <- predict(m_knn, book_test, type = "response")
-
-#ann model
-p_ann <- predict(m_ann, book_test, type = "response")
-
-#SVM model
-p_svm <- predict(m_svm, book_test, type = "response")
-
-#decision tree model
-p_tree <- predict(m_tree, book_test, type = "response")
-```
-
-### Step 6: Evaluate Models
-
-```{r}
-#turn predictions into binary values
-p_log_bin <- ifelse(p_regression > .5, 1, 0)
-p_ann_bin <- ifelse(p_ann > .5, 1, 0)
-p_svm_bin <- ifelse(p_svm > .5, 1, 0)
-
-#evaluate models
-confusionMatrix(as.factor(p_log_bin), as.factor(book_test$booking.status), positive = "1")
-confusionMatrix(as.factor(p_knn), as.factor(book_test$booking.status), positive = "1")
-confusionMatrix(as.factor(p_ann_bin), as.factor(book_test$booking.status), positive = "1")
-confusionMatrix(as.factor(p_svm_bin), as.factor(book_test$booking.status), positive = "1")
-confusionMatrix(as.factor(p_tree), as.factor(book_test$booking.status), positive = "1")
-
-#calculate kappas for each?
-```
-
-### Step 7: Build Prediction Data Frame
-
-```{r}
-booking_status <- book_test$booking.status
-pred_data_frame <- data.frame(p_log, p_knn, p_ann, p_svm, p_tree, booking_status)
-summary(pred_data_frame)
-```
-
-### Step 8: Split and Train New Data
-
-```{r}
-#70:30 split
-split_size <- .7
-test_size <- split_size*nrow(pred_data_frame)
-set.seed(1234)
-test_rows <- sample(1:nrow(pred_data_frame), test_size)
-
-#make test and train data
-stacked_test <- pred_data_frame[test_rows, ]
-stacked_train <- pred_data_frame[-test_rows, ]
-
-summary(book_train)
-summary(book_test)
-```
-
-### Step 9: Stacked Decision Tree
-
-```{r}
-#build stacked decision tree model
-m_stacked <- C5.0(as.factor(booking_status) ~ ., data = stacked_train)
-summary(m_stacked)
-
-#predict stacked decision tree model
-p_stacked <- predict(m_stacked, newdata = stacked_test)
-summary(p_stacked)
-
-#evaluate stacked decision tree model
-confusionMatrix(as.factor(p_stacked), as.factor(stacked_test$booking_status), positive = "1")
-```
-
-### Step 10: Cost Matrix
-
-```{r}
-
+summary(p_regression)
+#turn prediction into binary values
+p_bin <- ifelse(p_regression > .5, 1, 0)
+#evaluate model
+confusionMatrix(as.factor(p_bin), as.factor(book_test$booking.status), positive = "1")
 ```
 
