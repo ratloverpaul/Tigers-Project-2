@@ -10,6 +10,7 @@ In this document, we are using the Hotel Booking Cancellation Prediction dataset
 ### Business Problem
 
 The given hotel has a cancellation rate of 32.77% and therefore can not utilize it's full capacity, thus not working at maximum profitability. Losing out on a significant amount of profit means disadvantages for the business, leading to decreased competitiveness, ultimately putting the business at risk of being unable to compete. 
+
 **The question to answer is if a customer, identified by information collectable in advance, will or will not cancel their booking.**
 
 ### Business Solution
@@ -24,6 +25,11 @@ library(ggplot2)
 library(dplyr)
 library(corrplot)
 library(caret)
+library(class)
+library(neuralnet)
+library(kernlab)
+library(janitor)
+library(C50)
 
 #Load CSV
 book = read.csv("booking.csv")
@@ -60,6 +66,18 @@ book$market.segment.type = as.factor(book$market.segment.type)
 #make y-variable binary
 book$booking.status = ifelse(book$booking.status=="Canceled",1,0)
 
+#Turn into data frame
+book_dummy <- as.data.frame(model.matrix(~. -1, data = book))
+
+#Scale data
+minmax <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+book <- as.data.frame(lapply(book_dummy, minmax))
+
+#display scaled data
+str(book)
 summary(book)
 ```
 ### Step 2: Visualize the data
@@ -116,27 +134,115 @@ summary(book_train)
 summary(book_test)
 ```
 
-### Step 4: Build Logistic Regression Model
+### Step 4: Build Models
 
 ```{r}
+#logisitic regression model
 m_regression <- glm(booking.status ~ ., data = book_train, family = "binomial")
 summary(m_regression)
+
+#knn model
+cancelled_col <- which(colnames(book_train) == "booking.status")
+m_knn <- knn(train = book_train[, -cancelled_col],
+                       test = book_test[, -cancelled_col],
+                       cl = book_train[, cancelled_col],
+                       k = 11,
+                       prob = TRUE)
+summary(m_knn)
+
+#ann model
+m_ann <- neuralnet(y ~., data = calls_train, hidden = 1, stepmax = 1e8, lifesign = "full")
+summary(m_ann)
+
+#SVM model
+m_svm <- ksvm(booking.status ~ ., data = book_train, kernel = "rbfdot")
+summary(m_svm)
+
+#decision tree
+m_tree <- C5.0(as.factor(booking.status) ~ ., book_train)
+plot(m_tree)
 ```
 
-### Step 5: Predict and Evaluate Regression Model
+### Step 5: Predict Models
 
 ```{r}
-#predict model
+#regression model
 p_regression <- predict(m_regression, book_test, type = "response")
-summary(p_regression)
 
-#turn prediction into binary values
-p_bin <- ifelse(p_regression > .5, 1, 0)
+#knn model
+p_knn <- predict(m_knn, book_test, type = "response")
 
-#evaluate model
-confusionMatrix(as.factor(p_bin), as.factor(book_test$booking.status), positive = "1")
+#ann model
+p_ann <- predict(m_ann, book_test, type = "response")
+
+#SVM model
+p_svm <- predict(m_svm, book_test, type = "response")
+
+#decision tree model
+p_tree <- predict(m_tree, book_test, type = "response")
 ```
 
-### Regression Analysis
+### Step 6: Evaluate Models
 
-The regression model developed to predict booking status achieved an accuracy of 80%, meaning it correctly identified the booking status for 80% of the cases in the dataset. Accuracy is a measure of the overall performance of the model, showing how well it predicts both canceled and non-canceled bookings. Sensitivity was 64%, indicating that the model correctly identified 64% of actual cancellations. This metric is crucial when it's important to capture most cancellation cases. Specificity was 88%, meaning the model accurately identified 88% of non-canceled bookings. High specificity indicates that the model is effective at minimizing false positives, like it rarely predicts a booking as canceled when it isn’t. Together, these metrics show that the model is well-balanced, with a strong ability to accurately classify non-cancellations and a reasonable ability to capture cancellations, making it a valuable tool for understanding and predicting booking outcomes.
+```{r}
+#turn predictions into binary values
+p_log_bin <- ifelse(p_regression > .5, 1, 0)
+p_ann_bin <- ifelse(p_ann > .5, 1, 0)
+p_svm_bin <- ifelse(p_svm > .5, 1, 0)
+
+#evaluate models
+confusionMatrix(as.factor(p_log_bin), as.factor(book_test$booking.status), positive = "1")
+confusionMatrix(as.factor(p_knn), as.factor(book_test$booking.status), positive = "1")
+confusionMatrix(as.factor(p_ann_bin), as.factor(book_test$booking.status), positive = "1")
+confusionMatrix(as.factor(p_svm_bin), as.factor(book_test$booking.status), positive = "1")
+confusionMatrix(as.factor(p_tree), as.factor(book_test$booking.status), positive = "1")
+
+#calculate kappas for each?
+```
+
+### Step 7: Build Prediction Data Frame
+
+```{r}
+booking_status <- book_test$booking.status
+pred_data_frame <- data.frame(p_log, p_knn, p_ann, p_svm, p_tree, booking_status)
+summary(pred_data_frame)
+```
+
+### Step 8: Split and Train New Data
+
+```{r}
+#70:30 split
+split_size <- .7
+test_size <- split_size*nrow(pred_data_frame)
+set.seed(1234)
+test_rows <- sample(1:nrow(pred_data_frame), test_size)
+
+#make test and train data
+stacked_test <- pred_data_frame[test_rows, ]
+stacked_train <- pred_data_frame[-test_rows, ]
+
+summary(book_train)
+summary(book_test)
+```
+
+### Step 9: Stacked Decision Tree
+
+```{r}
+#build stacked decision tree model
+m_stacked <- C5.0(as.factor(booking_status) ~ ., data = stacked_train)
+summary(m_stacked)
+
+#predict stacked decision tree model
+p_stacked <- predict(m_stacked, newdata = stacked_test)
+summary(p_stacked)
+
+#evaluate stacked decision tree model
+confusionMatrix(as.factor(p_stacked), as.factor(stacked_test$booking_status), positive = "1")
+```
+
+### Step 10: Cost Matrix
+
+```{r}
+
+```
+
