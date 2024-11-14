@@ -41,12 +41,11 @@ book$Booking_ID = NULL
 #convert date.of.reservation into dates
 book$date.of.reservation <- as.Date(book$date.of.reservation, format = "%m/%d/%Y")
 
-#remove NA values and return to date formate
+#remove NA values and return to date format
 book$date.of.reservation <- ifelse(is.na(book$date.of.reservation), mean(book$date.of.reservation, na.rm = TRUE), book$date.of.reservation)
 book$date.of.reservation <- as.Date(book$date.of.reservation)
 
 #extract day, day of the week, month, and year variables
-book$reservation_year <- as.factor(format(book$date.of.reservation, "%Y"))
 book$reservation_month <- as.factor(format(book$date.of.reservation, "%m"))
 book$reservation_day <- as.factor(format(book$date.of.reservation, "%d"))
 book$reservation_weekday <- as.factor(weekdays(book$date.of.reservation))
@@ -55,9 +54,6 @@ book$reservation_weekday <- as.factor(weekdays(book$date.of.reservation))
 #remove date.of.reservation from dataset after extraction
 book$date.of.reservation <- NULL
 
-#remove 2015 and 2016 from dataset as there is one occurence each
-book <- book %>% 
-  filter(reservation_year != 2015, reservation_year != 2016)
 
 #factorize character variables
 book$type.of.meal = as.factor(book$type.of.meal)
@@ -67,24 +63,16 @@ book$market.segment.type = as.factor(book$market.segment.type)
 #make y-variable binary
 book$booking.status = ifelse(book$booking.status=="Canceled",1,0)
 
-#Turn into data frame
-book_dummy <- as.data.frame(model.matrix(~. -1, data = book))
-
-#Scale data
-minmax <- function(x) {
-  (x - min(x)) / (max(x) - min(x))
-}
-
-book <- as.data.frame(lapply(book_dummy, minmax))
-
-#display scaled data
+#display data
 str(book)
 summary(book)
 
 #write cleaned csv file
 write.csv(book, "cleaned.csv")
 ```
+
 ### Step 2: Visualize the data
+
 ```{r}
 # Check cancellation distribution
 #ggplot(book, aes(x = factor(booking.status, labels = c("Not Canceled", "Canceled")))) +
