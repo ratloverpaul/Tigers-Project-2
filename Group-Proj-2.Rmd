@@ -232,7 +232,7 @@ summary(p_stacked)
 confusionMatrix(as.factor(p_stacked), as.factor(stacked_test$booking_status), positive = "1")
 ```
 
-### Step 10: Cost Matrix
+### Step 10: Cost Matrix 1
 
 ```{r}
 
