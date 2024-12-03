@@ -1,0 +1,62 @@
+---
+title: "Random_Forest_Project2"
+author: "Nathan Koh"
+date: "2024-12-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#library
+
+## Step 1: Import Data
+```{r}
+hotel <- read.csv("cleaned.csv")
+library(caret)
+library(class)
+library(rpart)
+library(C50)
+library(randomForest)
+head(hotel)
+str(hotel)
+```
+
+## Step 2: Clean Data
+```{r}
+hotel$X = NULL
+hotel_dummy <- as.data.frame(model.matrix(~.-1, data = hotel))
+
+#Scale data
+min_max <- function(x){
+  (x-min(x))/(max(x)- min(x))
+}
+
+hotel_scaled <- as.data.frame(lapply(hotel_dummy, min_max))
+summary(hotel_scaled)
+```
+
+## Step 3: Split Data
+```{r}
+set.seed(12345)
+test_size <- 0.3
+test_rows <- sample(1:nrow(hotel_scaled), test_size * nrow(hotel_scaled))
+
+hotel_test <- hotel_scaled[test_rows, ]
+hotel_train <- hotel_scaled[-test_rows, ]
+hotel_train$booking.status <- as.factor(hotel_train$booking.status)
+hotel_test$booking.status <- as.factor(hotel_test$booking.status)
+```
+
+## RandomForest Model
+```{r, cache = TRUE}
+m1 <- randomForest(booking.status~ ., data = hotel_train, ntree = 500, mtry = sqrt(32))
+plot(m1)
+
+pred1 <- predict(m1,hotel_test, type ="class")
+
+randomForest::varImpPlot(m1)
+
+confusionMatrix(table(pred1, hotel_test$booking.status))
+```
