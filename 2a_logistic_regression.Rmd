@@ -1,0 +1,103 @@
+---
+title: "logistic regression"
+author: "Rachel Lewis"
+date: "2024-12-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## load required libaries
+
+```{r}
+# Loading the caret library, which provides tools for training and evaluating the logistic regression model
+library(caret)
+```
+
+
+## get and clean data
+
+```{r}
+# Reading in the cleaned dataset
+book <- read.csv("cleaned.csv", stringsAsFactors = TRUE)
+
+# Removing unnecessary columns: 'X' (index column) and 'reservation_year' (deemed irrelevant for prediction)
+book$X <- NULL
+book$reservation_year <- NULL
+
+# Converting 'reservation_day' and 'reservation_month' into factors for modeling, as they represent categorical data
+book$reservation_day <- as.factor(book$reservation_day)
+book$reservation_month <- as.factor(book$reservation_month)
+```
+
+## split and train data
+
+```{r, cache = TRUE}
+# Creating a 70:30 train-test split to evaluate the model's performance on unseen data
+split_size <- .3  # Proportion of data to use for testing
+test_size <- split_size * nrow(book)  # Calculate the number of rows for the test set
+set.seed(1234)  # Setting seed for reproducibility
+test_rows <- sample(1:nrow(book), test_size)  # Randomly sample row indices for the test set
+
+# Splitting the dataset into training and test sets
+book_test <- book[test_rows, ]  # Test set
+book_train <- book[-test_rows, ]  # Training set
+```
+
+## build model
+
+```{r, cache = TRUE}
+# Building a logistic regression model to predict 'booking.status' using all other features
+# Includes interaction terms for specific feature pairs to capture more complex relationships
+m_regression <- glm(booking.status ~ . + number.of.adults*number.of.children + 
+                      number.of.adults*average.price + 
+                      average.price*number.of.weekend.nights + 
+                      car.parking.space*number.of.children + 
+                      number.of.adults*reservation_month + 
+                      average.price*reservation_month, 
+                    data = book_train, family = "binomial")
+
+# Displaying a summary of the model to review coefficients and statistical significance
+summary(m_regression)
+
+# Using backward stepwise selection to simplify the model by removing less significant predictors
+step_model <- step(m_regression, direction = "backward",trace = F)
+
+# Displaying a summary of the refined model
+summary(step_model)
+```
+
+## predict and evaluate model
+
+```{r, cache = TRUE}
+# Generating predictions for the test set using the refined logistic regression model
+p_regression <- predict(step_model, book_test, type = "response")
+
+# Summarizing the prediction probabilities to review their range and distribution
+summary(p_regression)
+
+# Converting predicted probabilities into binary outcomes (1 for predicted cancellations, 0 otherwise)
+p_regression_bin <- ifelse(p_regression > .5, 1, 0)
+
+# Evaluating the model's performance using a confusion matrix
+# This calculates metrics like accuracy, sensitivity, and specificity
+confusionMatrix(as.factor(p_regression_bin), as.factor(book_test$booking.status), positive = "1")
+```
+
+## export predictions
+
+```{r}
+# Exporting the prediction probabilities to a CSV file for further analysis or reporting
+write.csv(p_regression, "prediction_logistic_regression.csv")
+```
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,126 @@
+
+---
+title: "Combining Models"
+author: "Paul Povel"
+date: "2024-12-03"
+output: html_document
+---
+
+```{r}
+# Loading necessary libraries for decision tree modeling and evaluation
+library(C50)
+library(caret)
+```
+
+In this step, we combine the results of multiple predictive models into an ensemble model. The individual models we have previously worked on include:
+
+1. Artificial Neural Network (ANN)
+2. k-Nearest Neighbors (KNN)
+3. Logistic Regression
+4. Decision Tree
+5. Random Forest
+6. Support Vector Machine (SVM)
+
+These models have been used to predict whether a hotel booking will be canceled. By combining their predictions into a single dataset and using a decision tree model to classify the results, we aim to leverage the strengths of each model to improve overall predictive accuracy.
+
+
+
+## Step 1: Load Predictions
+
+```{r}
+# Load predictions from individual models
+ann_predictions <- read.csv("prediction_ANN.csv")
+knn_predictions <- read.csv("knn_prediction.csv")
+logistic_predictions <- read.csv("prediction_logistic_regression.csv")
+tree_predictions <- read.csv("prediction_decision_tree.csv")
+random_forest_predictions <- read.csv("prediction_random_forest.csv")
+svm_predictions <- read.csv("prediction_svm.csv")
+```
+
+## Step 2: Combine Predictions
+
+```{r}
+# Combine model predictions into a single data frame for ensemble modeling
+ensemble_df <- data.frame(
+  ANN_Model = ann_predictions$V1,
+  KNN_Model = knn_predictions$x,
+  Logistic_Model = logistic_predictions$x,
+  Decision_Tree = tree_predictions$x,
+  Random_Forest = random_forest_predictions$x,
+  SVM = svm_predictions$x,
+  booking_status = 0
+)
+
+# Load the cleaned dataset and extract the true booking status
+clnd <- read.csv("cleaned.csv")
+set.seed(12345)
+
+# Perform a 70:30 split for testing
+split_size <- 0.3
+test_size <- split_size * nrow(clnd)
+test_rows <- sample(1:nrow(clnd), test_size)
+
+# Create test data
+book_test <- clnd[test_rows, ]
+ensemble_df$booking_status <- as.factor(book_test$booking.status)
+
+# Summarize the combined data
+summary(ensemble_df)
+```
+
+## Step 3: Split Data for Ensemble Model
+
+```{r}
+# Split data into training and testing sets
+split_size <- 0.3
+test_size <- split_size * nrow(ensemble_df)
+# Set seed for reproducibility
+set.seed(12345)
+test_rows <- sample(1:nrow(ensemble_df), test_size)
+
+ensemble_test <- ensemble_df[test_rows, ]
+ensemble_train <- ensemble_df[-test_rows, ]
+```
+
+## Step 4: Train Decision Tree with Cost Matrix
+To account for the different costs associated with prediction errors, we implement a cost matrix. In our hotel scenario:
+
+- A **false positive** (predicting a cancellation when there isn't one) costs \( \$100 \) because we would have to rebook the guest at another hotel at our expense.
+- A **false negative** (predicting no cancellation when there is one) costs \( \$20 \) due to the opportunity cost of losing the potential profit from renting out the room to someone else.
+
+### Cost Calculation
+
+The false negative cost is derived as:
+
+\[
+\text{Cost of False Negative} = \text{Average Price per Night} \times \text{Profit Margin}
+\]
+
+For our hotel:
+\[
+\text{Cost of False Negative} = \$100 \times 0.20 = \$20
+\]
+
+```{r}
+# Define a cost matrix based on the costs of false positives and false negatives
+cost_matrix <- matrix(c(0, 100, 20, 0), nrow = 2)
+
+# Train a decision tree model using the cost matrix
+final_tree_model <- C5.0(as.factor(booking_status) ~ ., data = ensemble_train, costs = cost_matrix)
+
+# Plot the decision tree structure
+plot(final_tree_model)
+```
+
+## Step 5: Evaluate the Ensemble Model
+
+```{r}
+# Make predictions on the test dataset
+final_predictions <- predict(final_tree_model, ensemble_test)
+
+# Evaluate the model's performance using a confusion matrix
+conf_matrix <- confusionMatrix(final_predictions, ensemble_test$booking_status, positive = "1")
+
+# Print the confusion matrix and performance statistics
+print(conf_matrix)
+```

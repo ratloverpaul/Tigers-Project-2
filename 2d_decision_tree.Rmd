@@ -1,0 +1,93 @@
+---
+title: "Decision Tree"
+author: "Adil Toktassyn"
+date: "2024-11-28"
+output: html_document
+---
+```{r}
+#import necessary libraries
+library(C50)
+library(caret)
+```
+
+## Step 1: Import Data
+
+```{r}
+# Reading in the cleaned hotel booking dataset
+hotel <- read.csv("cleaned.csv")
+
+# Displaying the first few rows of the dataset for a quick preview
+head(hotel)
+
+# Displaying the structure of the dataset to check variable types and dimensions
+str(hotel)
+```
+
+## Step 2: Clean Data
+
+```{r}
+# Removing the unnecessary 'X' column (index column)
+hotel$X <- NULL
+
+# Converting all categorical variables into dummy variables using model.matrix
+hotel_dummy <- as.data.frame(model.matrix(~.-1, data = hotel))
+
+# Defining a min-max scaling function to scale numeric data between 0 and 1
+min_max <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+# Applying min-max scaling to all columns in the dataset to standardize the data
+hotel_scaled <- as.data.frame(lapply(hotel_dummy, min_max))
+
+# Summarizing the scaled dataset to confirm the transformations
+summary(hotel_scaled)
+```
+
+## Step 2: Split Data
+
+```{r}
+# Setting a seed for reproducibility when splitting the data
+set.seed(12345)
+
+# Defining the proportion of data to be used for testing
+test_size <- 0.3
+
+# Randomly sampling row indices for the test set based on the test size
+test_rows <- sample(1:nrow(hotel_scaled), test_size * nrow(hotel_scaled))
+
+# Splitting the data into test and train sets
+hotel_test <- hotel_scaled[test_rows, ]  # Test dataset
+hotel_train <- hotel_scaled[-test_rows, ]  # Training dataset
+
+# Ensuring the 'booking.status' variable is treated as a factor for classification
+hotel_train$booking.status <- as.factor(hotel_train$booking.status)
+hotel_test$booking.status <- as.factor(hotel_test$booking.status)
+```
+
+
+### Step 3: Build Models
+
+```{r}
+m_tree <- C5.0(as.factor(booking.status) ~ ., hotel_train)
+plot(m_tree)
+```
+
+### Step 4: Predict Models
+
+```{r}
+#predcting the test data
+p_tree <- predict(m_tree, hotel_test)
+```
+
+```{r}
+#writing the predictions into a csv file
+write.csv(p_tree, "prediction_decision_tree.csv")
+```
+
+### Step 5: Evaluate Model
+
+```{r}
+#evalutating model with a confusion matrix
+confusionMatrix(as.factor(p_tree), as.factor(hotel_test$booking.status), positive = "1")
+```

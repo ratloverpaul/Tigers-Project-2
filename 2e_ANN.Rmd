@@ -1,0 +1,97 @@
+
+---
+title: "ANN model"
+author: "William Tong"
+date: "2024-11-14"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+# Setting up knitr options to display code and output in the document
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Loading library for ANN 
+
+```{r, cache = TRUE}
+# Loading the required libraries for building the ANN model and evaluation
+library(neuralnet)
+library(caret)
+```
+
+# Import Data
+
+```{r}
+# Reading in the cleaned dataset
+cleaned_book <- read.csv("cleaned.csv", stringsAsFactors = TRUE)
+
+# Removing the unnecessary 'X' column
+cleaned_book$X <- NULL
+
+# Converting categorical variables into dummy variables using model.matrix
+book_dummy <- as.data.frame(model.matrix(~. -1, data = cleaned_book))
+
+# Defining a min-max scaling function to normalize numerical data
+minmax <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+# Applying min-max scaling to all columns in the dataset
+book_scaled <- as.data.frame(lapply(book_dummy, minmax))
+
+# Displaying the structure of the scaled dataset
+str(book_scaled)
+```
+
+## Splitting Data
+
+```{r, cache = TRUE}
+# Performing a 70:30 split for training and testing
+split_size <- 0.3  # Proportion of data for testing
+test_size <- split_size * nrow(book_scaled)
+
+# Setting a seed for reproducibility and randomly sampling row indices for the test set
+set.seed(12345)
+test_rows <- sample(1:nrow(book_scaled), test_size)
+
+# Splitting the dataset into training and test sets
+book_test <- book_scaled[test_rows, ]  # Test dataset
+book_train <- book_scaled[-test_rows, ]  # Training dataset
+
+# Displaying summaries of the training and test datasets
+summary(book_train)
+summary(book_test)
+```
+
+## ANN Model
+
+```{r, cache = TRUE}
+# Building an Artificial Neural Network (ANN) model using neuralnet
+# 'hidden' specifies the number of neurons in the hidden layer
+# 'stepmax' limits the number of iterations for training
+m_ann <- neuralnet(booking.status ~ ., data = book_train, hidden = 3, stepmax = 1e8, lifesign = "full")
+
+# Displaying a summary of the trained ANN model
+summary(m_ann)
+```
+
+# Prediction and Evaluation
+
+```{r, cache = TRUE}
+# Generating predictions using the ANN model on the test dataset
+p_ann <- predict(m_ann, book_test)
+
+# Converting predictions into binary format (1 for cancellation, 0 otherwise)
+p_ann_bin <- ifelse(p_ann > 0.5, 1, 0)
+
+# Evaluating the model's performance using a confusion matrix
+# Setting the positive class as "1" for cancellations
+confusionMatrix(as.factor(p_ann_bin), as.factor(book_test$booking.status), positive = "1")
+```
+
+# Output CSV File
+
+```{r}
+# Exporting the binary predictions to a CSV file for further analysis or reporting
+write.csv(p_ann_bin, file = "prediction_ANN.csv")
+```

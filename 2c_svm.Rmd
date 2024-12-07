@@ -1,0 +1,117 @@
+
+---
+title: "SVM Model"
+author: "Paul Povel"
+date: "2024-12-03"
+output: html_document
+---
+```{r}
+# Load necessary libraries for SVM and evaluation
+library(kernlab)
+library(caret)
+```
+
+# Import Data, it is cleaned already
+```{r}
+# Read the cleaned data and preprocess
+clnd = read.csv("cleaned.csv")
+clnd$X = NULL
+clnd$booking.status = as.factor(clnd$booking.status)
+summary(clnd)
+```
+
+### Step 3: Split and Train the Data
+```{r}
+# Perform a 70:30 split for training and testing
+split_size <- .3
+test_size <- split_size * nrow(clnd)
+set.seed(12345)
+test_rows <- sample(1:nrow(clnd), test_size)
+
+# Create test and train datasets
+book_test <- clnd[test_rows, ]
+book_train <- clnd[-test_rows, ]
+
+# Summarize the training and testing datasets
+summary(book_train)
+summary(book_test)
+```
+
+# Build Models and see how well they perform
+```{r}
+# 1. Radial Basis kernel "Gaussian"
+m1 <- ksvm(booking.status ~ ., data = book_train, kernel = "rbfdot")
+m1_predictions <- predict(m1, book_test)
+m1_conf_matrix <- confusionMatrix(m1_predictions, book_test$booking.status)
+cat("\nConfusion Matrix for Kernel: rbfdot\n")
+print(m1_conf_matrix)
+```
+
+```{r}
+# 2. Polynomial kernel
+m2 <- ksvm(booking.status ~ ., data = book_train, kernel = "polydot")
+m2_predictions <- predict(m2, book_test)
+m2_conf_matrix <- confusionMatrix(m2_predictions, book_test$booking.status)
+cat("\nConfusion Matrix for Kernel: polydot\n")
+print(m2_conf_matrix)
+```
+
+```{r}
+# 3. Linear kernel (vanilladot)
+m3 <- ksvm(booking.status ~ ., data = book_train, kernel = "vanilladot")
+m3_predictions <- predict(m3, book_test)
+m3_conf_matrix <- confusionMatrix(m3_predictions, book_test$booking.status)
+cat("\nConfusion Matrix for Kernel: vanilladot\n")
+print(m3_conf_matrix)
+```
+
+```{r}
+# 4. Hyperbolic Tangent kernel (tanhdot)
+m4 <- ksvm(booking.status ~ ., data = book_train, kernel = "tanhdot")
+m4_predictions <- predict(m4, book_test)
+m4_conf_matrix <- confusionMatrix(m4_predictions, book_test$booking.status)
+cat("\nConfusion Matrix for Kernel: tanhdot\n")
+print(m4_conf_matrix)
+```
+
+```{r}
+# 5. Laplacian kernel (laplacedot)
+m5 <- ksvm(booking.status ~ ., data = book_train, kernel = "laplacedot")
+m5_predictions <- predict(m5, book_test)
+m5_conf_matrix <- confusionMatrix(m5_predictions, book_test$booking.status)
+cat("\nConfusion Matrix for Kernel: laplacedot\n")
+print(m5_conf_matrix)
+```
+
+```{r}
+# 6. Bessel kernel (besseldot)
+m6 <- ksvm(booking.status ~ ., data = book_train, kernel = "besseldot")
+m6_predictions <- predict(m6, book_test)
+m6_conf_matrix <- confusionMatrix(m6_predictions, book_test$booking.status)
+cat("\nConfusion Matrix for Kernel: besseldot\n")
+print(m6_conf_matrix)
+```
+
+```{r}
+# 7. ANOVA kernel (anovadot)
+m7 <- ksvm(booking.status ~ ., data = book_train, kernel = "anovadot")
+m7_predictions <- predict(m7, book_test)
+m7_conf_matrix <- confusionMatrix(m7_predictions, book_test$booking.status)
+cat("\nConfusion Matrix for Kernel: anovadot\n")
+print(m7_conf_matrix)
+```
+
+```{r}
+# 8. Spline kernel (splinedot)
+m8 <- ksvm(booking.status ~ ., data = book_train, kernel = "splinedot")
+m8_predictions <- predict(m8, book_test)
+m8_conf_matrix <- confusionMatrix(m8_predictions, book_test$booking.status)
+cat("\nConfusion Matrix for Kernel: splinedot\n")
+print(m8_conf_matrix)
+```
+
+# Write the best results into a csv file
+```{r}
+# Export the predictions of the best-performing kernel (laplacian kernel) to a CSV file
+write.csv(m5_predictions, "prediction_svm.csv")
+```
