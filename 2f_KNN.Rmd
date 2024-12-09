@@ -5,6 +5,78 @@ date: "2024-11-14"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+In this document, we are using the Hotel Booking Cancellation Prediction dataset, a comprehensive collection of data aimed at predicting hotel booking cancellations, to try and maximize the hotel's profit by being able to overbook the hotel. The data is originally from the article "Hotel Booking Demand Datasets", written by Nuno Antonio, Ana Almeida, and Luis Nunes for Data in Brief, Volume 22, February 2019. 
+
+For this code, the cleaned data from the booking status data set is to be used to build a KNN model to be able to predict hotel bookings. A K-Nearest Neighbors (KNN) model predicts hotel booking statuses by identifying patterns in guest features such as booking lead time, room type, and customer type. By comparing each booking to its closest neighbors in the dataset, the model determines whether a reservation is likely to be canceled, helping hotels optimize overbooking strategies and revenue management.
+
+## libraries needed
+
+```{r, CACHE = TRUE}
+library(class)
+library(caret)
+```
+
+## Get and Clean Data
+
+```{r, cache = TRUE}
+book <- read.csv("cleaned.csv", stringsAsFactors = TRUE)
+book$X <- NULL
+book$reservation_year <- NULL
+book$reservation_day <- as.factor(book$reservation_day)
+book$reservation_month <- as.factor(book$reservation_month)
+
+str(book)
+summary(book)
+
+```
+
+## scale data
+
+```{r, cache = TRUE}
+#turn into data frame
+book_dummy <- as.data.frame(model.matrix(~. -1, data = book))
+
+#Scale data
+minmax <- function(x) {
+  (x - min(x)) / (max(x) - min(x))
+}
+
+book_scaled <- as.data.frame(lapply(book_dummy, minmax))
+```
+
+## split and train data
+
+```{r, cache = TRUE}
+#70:30 split
+split_size <- .3
+test_size <- split_size*nrow(book_scaled)
+set.seed(12345)
+test_rows <- sample(1:nrow(book_scaled), test_size)
+
+#make test and train data
+book_test <- book_scaled[test_rows, ]
+book_train <- book_scaled[-test_rows, ]
+```
+
+## build knn model
+
+```{r}
+#build model
+book_col <- which(colnames(book_train) == "booking.status")
+p_knn <- knn(train = book_train[, -book_col],
+                       test = book_test[, -book_col],
+                       cl = book_train[, book_col],
+                       k = 11,
+                       prob = TRUE)
+summary(p_knn)
+
+#evaluate model
+confusionMatrix(as.factor(p_knn), as.factor(book_test$booking.status), positive = "1")
+```
+
+## export predictions
+
+```{r, cache = TRUE}
+#export predictions from pnn to be used as a csv in the stacked model
+write.csv(p_knn, "knn_prediction.csv")
 ```
